@@ -4,9 +4,12 @@ Bundle-Name: Bookmark
 Bundle-SymbolicName: bookmark; singleton:=true
 Bundle-Version: 1.0.1.qualifier
 Bundle-Activator: bookmark.Activator
-Bundle-Vendor: hanks
+Bundle-Vendor: hanks, Aloys
 Require-Bundle: org.eclipse.ui,
- org.eclipse.core.runtime
+ org.eclipse.core.runtime,
+ org.eclipse.jdt.ui;bundle-version="3.11.2",
+ org.eclipse.jface,
+ org.eclipse.ui.workbench
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Import-Package: org.eclipse.core.resources,

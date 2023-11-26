@@ -14,11 +14,10 @@ import bookmark.constant.Constant;
  * (like Task List, for example).
  */
 public class TreeParent extends TreeObject {
-
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = -1850997564183666463L;
+	private static final long serialVersionUID = -4199032533438293477L;
 	private ArrayList<TreeObject> children;
 
 	public TreeParent(String name) {

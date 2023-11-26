@@ -13,28 +13,20 @@ import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.SWT;
 import org.eclipse.core.runtime.Path;
 
-import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.resources.ResourcesPlugin;
-import org.osgi.service.prefs.BackingStoreException;
-import org.osgi.service.prefs.Preferences;
-
-import com.google.gson.Gson;
-
 import bookmark.constant.Constant;
+import bookmark.utils.PersistantUtils;
 import bookmark.utils.ValidationUtils;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-
+import org.eclipse.jdt.core.IClassFile;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.internal.ui.javaeditor.IClassFileEditorInput;
+import org.eclipse.jdt.internal.ui.javaeditor.InternalClassFileEditorInput;
 
 /**
  * This sample class demonstrates how to plug-in a new workbench view. The view
@@ -53,11 +45,7 @@ import org.eclipse.jdt.core.ICompilationUnit;
 
 public class BookmarkView extends ViewPart {
 
-	/**
-	 * The ID of the view as specified by the extension.
-	 */
-	public static final String ID = "bookmark.views.BookmarkView";
-	public static final String DATA_STORE_KEY = "bookmark_datasource";
+
 
 	private TreeViewer viewer;
 
@@ -137,7 +125,7 @@ public class BookmarkView extends ViewPart {
 		viewer.setSorter(new NameSorter());
 
 		// get data from store or else do initialization
-		TreeParent invisibleRoot = this.loadPersistantData();
+		TreeParent invisibleRoot = PersistantUtils.loadPersistantData();
 
 		// set data source
 		viewer.setInput(invisibleRoot);
@@ -230,7 +218,7 @@ public class BookmarkView extends ViewPart {
 					viewer.setExpandedTreePaths(expandedTreePaths);
 
 					// save to persistent
-					BookmarkView.savePersistantData(invisibleRoot);
+					PersistantUtils.savePersistantData(invisibleRoot);
 				}
 			}
 		};
@@ -282,7 +270,7 @@ public class BookmarkView extends ViewPart {
 				viewer.setExpandedTreePaths(expandedTreePaths);
 
 				// save to persistent
-				BookmarkView.savePersistantData(invisibleRoot);
+				PersistantUtils.savePersistantData(invisibleRoot);
 			}
 		};
 		this.addFolderAction.setText("Add folder here");
@@ -361,7 +349,7 @@ public class BookmarkView extends ViewPart {
 				viewer.setExpandedTreePaths(expandedTreePaths);
 
 				// save to persistent
-				BookmarkView.savePersistantData(invisibleRoot);
+				PersistantUtils.savePersistantData(invisibleRoot);
 			}
 		};
 		this.addBookmarkAction.setText("Add bookmark here");
@@ -383,13 +371,23 @@ public class BookmarkView extends ViewPart {
 					for (int i = 0; i < editors.length; i++) {
 						IEditorPart editor = editors[i];
 
-						IFileEditorInput input = (IFileEditorInput) editor.getEditorInput();
-						IFile file = input.getFile();
-						relativePath = file.getProjectRelativePath().toOSString();
-						projectName = file.getProject().getName();
+						IEditorInput iEditorInput = editor.getEditorInput();
 
-						// create leaf with file info
-						TreeObject child = new TreeObject(relativePath, projectName);
+						TreeObject child = null;
+
+						if(iEditorInput instanceof IFileEditorInput)
+						{
+							IFileEditorInput input = (IFileEditorInput) iEditorInput;
+							IFile file = input.getFile();
+							relativePath = file.getProjectRelativePath().toOSString();
+							projectName = file.getProject().getName();
+							child = new TreeObject(relativePath, projectName);
+						} else if(iEditorInput instanceof IClassFileEditorInput)
+						{
+							IClassFileEditorInput input = (IClassFileEditorInput) iEditorInput;
+							IClassFile file = input.getClassFile();
+							child = new TreeObject(file);
+						}
 
 						// get invisibleRoot
 						TreeParent invisibleRoot = (TreeParent) viewer.getInput();
@@ -416,7 +414,7 @@ public class BookmarkView extends ViewPart {
 						viewer.setExpandedTreePaths(expandedTreePaths);
 
 						// save to persistent
-						BookmarkView.savePersistantData(invisibleRoot);
+						PersistantUtils.savePersistantData(invisibleRoot);
 					}
 				} else {
 					showMessage("No active editor");
@@ -460,7 +458,7 @@ public class BookmarkView extends ViewPart {
 
 				TreeParent invisibleRoot = (TreeParent) viewer.getInput();
 				viewer.setInput(invisibleRoot);
-				BookmarkView.savePersistantData(invisibleRoot);
+				PersistantUtils.savePersistantData(invisibleRoot);
 			}
 		};
 
@@ -484,25 +482,38 @@ public class BookmarkView extends ViewPart {
 						}
 						return;
 					}
-					String relativePath = treeObject.getName();
-					IWorkspaceRoot workspaceRoot = ResourcesPlugin.getWorkspace().getRoot();
-					IProject project = workspaceRoot.getProject(treeObject.getProjectName());
-					IFile file1 = project.getFile((new Path(relativePath)));
-					IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-					IWorkbenchPage page = window.getActivePage();
-					IEditorDescriptor desc = PlatformUI.getWorkbench().getEditorRegistry()
-							.getDefaultEditor(file1.getName());
 
-					// if no right editor to find, use default text editor
-					try {
-						if (desc == null) {
-							page.openEditor(new FileEditorInput(file1), "org.eclipse.ui.DefaultTextEditor");
-						} else {
-							page.openEditor(new FileEditorInput(file1), desc.getId());
+					if(treeObject.getiClassFile() == null) {
+						String relativePath = treeObject.getName();
+						IWorkspaceRoot workspaceRoot = ResourcesPlugin.getWorkspace().getRoot();
+						IProject project = workspaceRoot.getProject(treeObject.getProjectName());
+						IFile file1 = project.getFile((new Path(relativePath)));
+						IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+						IWorkbenchPage page = window.getActivePage();
+						IEditorDescriptor desc = PlatformUI.getWorkbench().getEditorRegistry()
+								.getDefaultEditor(file1.getName());
+
+						// if no right editor to find, use default text editor
+						try {
+							if (desc == null) {
+								page.openEditor(new FileEditorInput(file1), "org.eclipse.ui.DefaultTextEditor");
+							} else {
+								page.openEditor(new FileEditorInput(file1), desc.getId());
+							}
+						} catch (PartInitException e) {
+							e.printStackTrace();
 						}
-					} catch (PartInitException e) {
-						e.printStackTrace();
+					} else {
+						IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+						IWorkbenchPage page = window.getActivePage();
+						try {
+							page.openEditor(new InternalClassFileEditorInput(treeObject.getiClassFile()), "org.eclipse.ui.DefaultTextEditor");
+						} catch (PartInitException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
 					}
+
 				}
 			}
 		};
@@ -527,70 +538,5 @@ public class BookmarkView extends ViewPart {
 		viewer.getControl().setFocus();
 	}
 
-	/**
-	 * Use eclipse Preferences API to make data persistent
-	 *
-	 * @param dataSource
-	 */
-	private static void savePersistantData(TreeParent dataSource) {
-		Preferences prefs = InstanceScope.INSTANCE.getNode(ID);
 
-		// change object to string
-		Gson gson = new Gson();
-
-		// change object byte array
-		ByteArrayOutputStream b = new ByteArrayOutputStream();
-		ObjectOutputStream o;
-		try {
-			o = new ObjectOutputStream(b);
-			o.writeObject(dataSource);
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-
-		byte[] byteDataArray = b.toByteArray();
-
-		// use gson to change byte array to string
-		String json_str = gson.toJson(byteDataArray);
-
-		prefs.put(DATA_STORE_KEY, json_str);
-		try {
-			// store to disk
-			prefs.flush();
-		} catch (BackingStoreException e) {
-			e.printStackTrace();
-		}
-	}
-
-	private TreeParent loadPersistantData() {
-		Preferences prefs = InstanceScope.INSTANCE.getNode(ID);
-
-		String json_str = prefs.get(DATA_STORE_KEY, "");
-
-		if (json_str == "") {
-			// no data source yet, do initialization
-			TreeParent invisibleRoot = new TreeParent("");
-			return invisibleRoot;
-		} else {
-			Gson gson = new Gson();
-			byte[] byteDataArray = gson.fromJson(json_str, byte[].class);
-
-			// deserialize object from byteDataArray
-			ByteArrayInputStream b = new ByteArrayInputStream(byteDataArray);
-			ObjectInputStream o;
-			TreeParent invisibleRoot = null;
-			try {
-				o = new ObjectInputStream(b);
-				invisibleRoot = (TreeParent) o.readObject();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (ClassNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			return invisibleRoot;
-		}
-	}
 }
